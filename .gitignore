@@ -23,3 +23,4 @@ images/tmp*
 
 # AI Models
 models/*.onnx
+.DS_Store
