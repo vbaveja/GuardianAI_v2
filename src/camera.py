@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+from src.core.constants import DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_WIDTH
 from src.core.exceptions import CameraError
 
 
@@ -172,29 +173,78 @@ class OpenCVCamera(Camera):
 
 
 class PiCamera(Camera):
-    """Raspberry Pi camera placeholder for future Picamera2 integration."""
+    """Raspberry Pi camera implementation backed by Picamera2."""
+
+    def __init__(
+        self,
+        width: int = DEFAULT_CAMERA_WIDTH,
+        height: int = DEFAULT_CAMERA_HEIGHT,
+    ) -> None:
+        """Create a Raspberry Pi camera source.
+
+        Args:
+            width: Requested camera frame width.
+            height: Requested camera frame height.
+        """
+        self._width = width
+        self._height = height
+        self._camera: Any | None = None
 
     def start(self) -> None:
         """Start the Raspberry Pi camera.
 
         Raises:
-            CameraError: Always, until Picamera2 support is implemented.
+            CameraError: If Picamera2 is unavailable or the camera cannot start.
         """
-        # TODO: Implement Picamera2 startup for Raspberry Pi hardware.
-        raise CameraError("PiCamera is not implemented yet.")
+        try:
+            from picamera2 import Picamera2
+        except ImportError as error:
+            raise CameraError("Picamera2 is required for PiCamera.") from error
+
+        try:
+            camera = Picamera2()
+            configuration = camera.create_video_configuration(
+                main={
+                    "size": (self._width, self._height),
+                    "format": "BGR888",
+                }
+            )
+            camera.configure(configuration)
+            camera.start()
+        except Exception as error:
+            raise CameraError("Unable to start Raspberry Pi camera.") from error
+
+        self._camera = camera
 
     def capture(self) -> Any:
         """Capture one Raspberry Pi camera frame.
 
         Returns:
-            Captured image frame.
+            Captured BGR image frame.
 
         Raises:
-            CameraError: Always, until Picamera2 support is implemented.
+            CameraError: If the camera is not started or capture fails.
         """
-        # TODO: Capture a frame using Picamera2.
-        raise CameraError("PiCamera is not implemented yet.")
+        if self._camera is None:
+            raise CameraError("PiCamera has not been started.")
+
+        try:
+            frame = self._camera.capture_array()
+        except Exception as error:
+            raise CameraError("PiCamera failed to capture a frame.") from error
+
+        if frame is None:
+            raise CameraError("PiCamera captured an empty frame.")
+
+        return frame
 
     def stop(self) -> None:
         """Stop the Raspberry Pi camera."""
-        # TODO: Release Picamera2 resources.
+        if self._camera is None:
+            return
+
+        try:
+            self._camera.stop()
+            self._camera.close()
+        finally:
+            self._camera = None
