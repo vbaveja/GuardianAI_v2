@@ -1,0 +1,293 @@
+# 10 Troubleshooting
+
+## Purpose
+
+This guide lists common GuardianAI problems and exact fixes.
+
+## Verify Project Location
+
+Run:
+
+```bash
+pwd
+```
+
+Expected macOS workspace:
+
+```text
+/Users/vivekbaveja/Documents/FLOS/GuardianAI/GuardianAI_v2
+```
+
+Raspberry Pi example:
+
+```text
+/home/pi/Projects/GuardianAI/GuardianAI_v2
+```
+
+## Python Version
+
+Run:
+
+```bash
+python3 --version
+```
+
+Expected Raspberry Pi:
+
+```text
+Python 3.11.x
+```
+
+## Missing OpenCV
+
+Error:
+
+```text
+ModuleNotFoundError: No module named 'cv2'
+```
+
+Fix:
+
+```bash
+python3 -m pip install opencv-python
+```
+
+Verify:
+
+```bash
+python3 -B -c "import cv2; print(cv2.__version__)"
+```
+
+Expected:
+
+```text
+5.x.x
+```
+
+or another installed OpenCV version.
+
+## Missing ONNX Runtime
+
+Error:
+
+```text
+ModuleNotFoundError: No module named 'onnxruntime'
+```
+
+Fix:
+
+```bash
+python3 -m pip install onnxruntime
+```
+
+Verify:
+
+```bash
+python3 -B -c "import onnxruntime; print(onnxruntime.__version__)"
+```
+
+Expected:
+
+```text
+1.x.x
+```
+
+## Missing Picamera2
+
+Error:
+
+```text
+Picamera2 is required for PiCamera.
+```
+
+Cause:
+
+- Running `--camera` on macOS.
+- Picamera2 missing on Raspberry Pi.
+
+Fix:
+
+Run static image mode on macOS:
+
+```bash
+python3 -B apps/perception_dashboard.py --threshold 0.01
+```
+
+On Raspberry Pi, verify:
+
+```bash
+python3 -B -c "from picamera2 import Picamera2; print('picamera2 ok')"
+```
+
+Expected:
+
+```text
+picamera2 ok
+```
+
+## Model Missing
+
+Error:
+
+```text
+ONNX model not found: models/object_detector.onnx
+```
+
+Fix:
+
+```bash
+ls models/object_detector.onnx
+```
+
+Expected:
+
+```text
+models/object_detector.onnx
+```
+
+If missing, copy the ONNX model into `models/`.
+
+## Labels Missing
+
+Error:
+
+```text
+Label file not found: labels/coco.txt
+```
+
+Fix:
+
+```bash
+ls labels/coco.txt
+```
+
+Expected:
+
+```text
+labels/coco.txt
+```
+
+## Unsupported YOLO Output Shape
+
+Error:
+
+```text
+Unsupported YOLO output shape
+```
+
+Cause:
+
+- Model output is not shaped like `(1, 84, N)` or `(1, N, 84)` for COCO.
+
+Inspect:
+
+```bash
+python3 -B apps/inference_explorer.py models/object_detector.onnx
+```
+
+Expected:
+
+```text
+Output tensor shape: (1, 84, 8400)
+Number of predictions: 8400
+Values per prediction: 84
+```
+
+## No Predictions
+
+Output:
+
+```text
+Predictions above threshold: 0
+```
+
+Try a lower threshold:
+
+```bash
+python3 -B apps/prediction_explorer.py --threshold 0.01
+```
+
+If predictions appear, the model works but the original threshold was too strict for the image.
+
+## No OpenCV Window
+
+Cause:
+
+- Running over SSH without display support.
+- Desktop display unavailable.
+
+Use terminal console instead:
+
+```bash
+python3 -B apps/guardian_console.py --camera --object person --threshold 0.25
+```
+
+## Camera Does Not Start
+
+Check physical setup:
+
+- Camera cable fully seated.
+- Camera enabled in Raspberry Pi OS.
+- Adequate power supply.
+
+Run:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25
+```
+
+Expected:
+
+- Dashboard opens.
+- Source shows `PiCamera`.
+
+## ONNX Runtime Creates :memory:.ses
+
+Observation:
+
+```text
+:memory:.ses
+```
+
+This can appear during ONNX Runtime validation on macOS.
+
+Cleanup:
+
+```bash
+rm ':memory:.ses'
+```
+
+## Keyboard Shortcuts Do Not Work
+
+For dashboard:
+
+```text
+1-6 highlight stage
+p prediction panel
+d detection panel
+space pause/resume
+q quit
+```
+
+Click the OpenCV window first, then press the key.
+
+## Expected Validation Sequence
+
+Run:
+
+```bash
+python3 -B tests/test_preprocessing.py
+python3 -B apps/inference_explorer.py models/object_detector.onnx
+python3 -B apps/prediction_explorer.py --threshold 0.01
+python3 -B apps/detection_explorer.py --threshold 0.01
+python3 -B apps/perception_dashboard.py --threshold 0.01 --object frisbee
+```
+
+Expected:
+
+- Preprocessing prints tensor shape.
+- Inference prints raw tensor shape.
+- Prediction explorer prints ranked predictions.
+- Detection explorer prints NMS removals.
+- Dashboard opens a visual multi-panel window.
+
