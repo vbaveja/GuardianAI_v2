@@ -7,6 +7,7 @@ so students can see how an image becomes predictions and final detections.
 from __future__ import annotations
 
 import argparse
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 import sys
@@ -28,6 +29,14 @@ from src.types.detection import Detection
 from src.types.inference import InferenceResult
 from src.types.prediction import Prediction
 from src.types.preprocessing import PreprocessingResult
+from apps.guardian_console import (
+    ConsoleEvent,
+    format_detection,
+    format_event,
+    update_console_state,
+    visible_duration,
+)
+from apps.object_watch import DEFAULT_TARGET_OBJECT, WatchEvent, WatchState, best_target_detection
 
 
 WINDOW_NAME = "GuardianAI Perception Dashboard"
@@ -37,6 +46,7 @@ DEFAULT_LABEL_PATH = ROOT_DIR / "labels" / "coco.txt"
 PANEL_WIDTH = 420
 PANEL_HEIGHT = 280
 INFO_HEIGHT = 230
+CONSOLE_HEIGHT = 260
 PREDICTION_COLOR = (255, 180, 0)
 DETECTION_COLOR = (0, 255, 80)
 HIGHLIGHT_COLOR = (0, 255, 255)
@@ -58,6 +68,12 @@ class DashboardData:
     source_name: str
     fps: float
     paused: bool
+    target_label: str
+    watch_state: WatchState
+    current_confidence: float | None
+    highest_confidence: float
+    visible_duration_seconds: float
+    recent_events: tuple[ConsoleEvent, ...]
 
 
 STAGE_TITLES = {
@@ -117,6 +133,16 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_NMS_THRESHOLD,
         help="IoU threshold used by Non-Maximum Suppression.",
     )
+    parser.add_argument(
+        "--object",
+        default=DEFAULT_TARGET_OBJECT,
+        help="Object label watched by the optional console panel.",
+    )
+    parser.add_argument(
+        "--hide-console",
+        action="store_true",
+        help="Hide the embedded Guardian Console panel.",
+    )
     return parser.parse_args()
 
 
@@ -129,6 +155,12 @@ def process_frame(
     source_name: str,
     fps: float,
     paused: bool,
+    target_label: str,
+    watch_state: WatchState,
+    current_confidence: float | None,
+    highest_confidence: float,
+    visible_duration_seconds: float,
+    recent_events: tuple[ConsoleEvent, ...],
 ) -> DashboardData:
     """Run one frame through the reusable perception modules."""
     preprocessing = preprocessor.process(frame)
@@ -148,6 +180,12 @@ def process_frame(
         source_name=source_name,
         fps=fps,
         paused=paused,
+        target_label=target_label,
+        watch_state=watch_state,
+        current_confidence=current_confidence,
+        highest_confidence=highest_confidence,
+        visible_duration_seconds=visible_duration_seconds,
+        recent_events=recent_events,
     )
 
 
@@ -294,7 +332,63 @@ def make_info_panel(data: DashboardData, active_stage: int) -> np.ndarray:
     return panel
 
 
-def render_dashboard(data: DashboardData, active_stage: int) -> np.ndarray:
+def make_console_panel(data: DashboardData) -> np.ndarray:
+    """Create the embedded Guardian Console panel."""
+    panel = np.full((CONSOLE_HEIGHT, PANEL_WIDTH * 3, 3), BACKGROUND_COLOR, dtype=np.uint8)
+    confidence_text = (
+        "n/a" if data.current_confidence is None else f"{data.current_confidence:.4f}"
+    )
+    highest_text = "n/a" if data.highest_confidence <= 0.0 else f"{data.highest_confidence:.4f}"
+
+    left_lines = [
+        "Guardian Console",
+        f"Watching: {data.target_label}",
+        f"Current State: {data.watch_state.value}",
+        f"Current Confidence: {confidence_text}",
+        f"Highest Confidence: {highest_text}",
+        f"Visible Duration: {data.visible_duration_seconds:.2f}s",
+    ]
+    middle_lines = ["Objects Currently Detected"]
+    if data.detections:
+        middle_lines.extend(format_detection(detection) for detection in data.detections[:6])
+    else:
+        middle_lines.append("- none")
+
+    right_lines = ["Recent Events"]
+    if data.recent_events:
+        right_lines.extend(format_event(event) for event in data.recent_events[-6:])
+    else:
+        right_lines.append("- none")
+
+    draw_panel_column(panel, left_lines, 14, 30)
+    draw_panel_column(panel, middle_lines, PANEL_WIDTH + 14, 30)
+    draw_panel_column(panel, right_lines, PANEL_WIDTH * 2 + 14, 30)
+    cv2.rectangle(panel, (0, 0), (panel.shape[1] - 1, panel.shape[0] - 1), (80, 80, 80), 1)
+    return panel
+
+
+def draw_panel_column(panel: np.ndarray, lines: list[str], x: int, y: int) -> None:
+    """Draw one text column in a dashboard-wide panel."""
+    for index, line in enumerate(lines):
+        font_scale = 0.68 if index == 0 else 0.5
+        color = HIGHLIGHT_COLOR if index == 0 else TEXT_COLOR
+        cv2.putText(
+            panel,
+            line[:62],
+            (x, y + index * 28),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            color,
+            1,
+            cv2.LINE_AA,
+        )
+
+
+def render_dashboard(
+    data: DashboardData,
+    active_stage: int,
+    show_console_panel: bool = True,
+) -> np.ndarray:
     """Render the complete multi-panel dashboard."""
     prediction_view = draw_predictions(data.preprocessing.model_image, data.predictions)
     detection_view = draw_detections(data.frame, data.detections)
@@ -318,7 +412,10 @@ def render_dashboard(data: DashboardData, active_stage: int) -> np.ndarray:
     first_row = np.hstack(panels[:3])
     second_row = np.hstack(panels[3:])
     info_row = make_info_panel(data, active_stage)
-    return np.vstack([first_row, second_row, info_row])
+    rows = [first_row, second_row, info_row]
+    if show_console_panel:
+        rows.append(make_console_panel(data))
+    return np.vstack(rows)
 
 
 def next_stage(active_stage: int) -> int:
@@ -340,6 +437,8 @@ def run(
     confidence_threshold: float,
     nms_threshold: float,
     use_pi_camera: bool,
+    target_label: str,
+    show_console_panel: bool,
 ) -> None:
     """Run the interactive perception dashboard."""
     camera = create_camera(use_pi_camera, image_path)
@@ -354,6 +453,9 @@ def run(
     active_stage = 1
     paused = False
     data: DashboardData | None = None
+    watch_state = WatchState.NOT_PRESENT
+    active_event: WatchEvent | None = None
+    recent_events: deque[ConsoleEvent] = deque(maxlen=10)
     last_frame_time = time.perf_counter()
 
     try:
@@ -379,6 +481,38 @@ def run(
                     source_name=source_name,
                     fps=fps,
                     paused=paused,
+                    target_label=target_label,
+                    watch_state=watch_state,
+                    current_confidence=None,
+                    highest_confidence=active_event.highest_confidence if active_event else 0.0,
+                    visible_duration_seconds=visible_duration(active_event),
+                    recent_events=tuple(recent_events),
+                )
+                target_detection = best_target_detection(data.detections, target_label)
+                watch_state, active_event = update_console_state(
+                    state=watch_state,
+                    active_event=active_event,
+                    target_detection=target_detection,
+                    target_label=target_label,
+                    recent_events=recent_events,
+                )
+                data = DashboardData(
+                    frame=data.frame,
+                    preprocessing=data.preprocessing,
+                    inference=data.inference,
+                    raw_prediction_count=data.raw_prediction_count,
+                    predictions=data.predictions,
+                    detections=data.detections,
+                    confidence_threshold=data.confidence_threshold,
+                    source_name=data.source_name,
+                    fps=data.fps,
+                    paused=data.paused,
+                    target_label=target_label,
+                    watch_state=watch_state,
+                    current_confidence=target_detection.confidence if target_detection else None,
+                    highest_confidence=active_event.highest_confidence if active_event else 0.0,
+                    visible_duration_seconds=visible_duration(active_event),
+                    recent_events=tuple(recent_events),
                 )
             elif data is not None and data.paused != paused:
                 data = DashboardData(
@@ -392,9 +526,34 @@ def run(
                     source_name=data.source_name,
                     fps=0.0 if paused else data.fps,
                     paused=paused,
+                    target_label=data.target_label,
+                    watch_state=data.watch_state,
+                    current_confidence=data.current_confidence,
+                    highest_confidence=data.highest_confidence,
+                    visible_duration_seconds=data.visible_duration_seconds,
+                    recent_events=data.recent_events,
+                )
+            elif data is not None:
+                data = DashboardData(
+                    frame=data.frame,
+                    preprocessing=data.preprocessing,
+                    inference=data.inference,
+                    raw_prediction_count=data.raw_prediction_count,
+                    predictions=data.predictions,
+                    detections=data.detections,
+                    confidence_threshold=data.confidence_threshold,
+                    source_name=data.source_name,
+                    fps=data.fps,
+                    paused=data.paused,
+                    target_label=data.target_label,
+                    watch_state=data.watch_state,
+                    current_confidence=data.current_confidence,
+                    highest_confidence=data.highest_confidence,
+                    visible_duration_seconds=visible_duration(active_event),
+                    recent_events=tuple(recent_events),
                 )
 
-            cv2.imshow(WINDOW_NAME, render_dashboard(data, active_stage))
+            cv2.imshow(WINDOW_NAME, render_dashboard(data, active_stage, show_console_panel))
             key_code = cv2.waitKey(50) & 0xFF
             if key_code == 255:
                 if not use_pi_camera:
@@ -430,6 +589,8 @@ def main() -> int:
             confidence_threshold=args.threshold,
             nms_threshold=args.nms_threshold,
             use_pi_camera=args.camera,
+            target_label=args.object,
+            show_console_panel=not args.hide_console,
         )
     except (GuardianAIError, FileNotFoundError, ValueError) as error:
         print(f"GuardianAI perception dashboard error: {error}", file=sys.stderr)
