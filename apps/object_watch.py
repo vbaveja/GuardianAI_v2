@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import time
 
@@ -32,7 +34,10 @@ DEFAULT_IMAGE_PATH = ROOT_DIR / "images" / "preprocessing_example_original.png"
 DEFAULT_MODEL_PATH = ROOT_DIR / "models" / "object_detector.onnx"
 DEFAULT_LABEL_PATH = ROOT_DIR / "labels" / "coco.txt"
 DEFAULT_TARGET_OBJECT = "person"
-DEFAULT_STATIC_INTERVAL_SECONDS = 1.0
+DEFAULT_STATIC_INTERVAL_SECONDS = 3.0
+DEFAULT_SOUND_PATH = ROOT_DIR / "sounds" / "hello.wav"
+DEFAULT_WATCH_MODE = "once"
+WATCH_MODES = ("once", "continuous")
 
 
 class WatchState(Enum):
@@ -52,7 +57,9 @@ class WatchEvent:
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for Object Watch."""
-    parser = argparse.ArgumentParser(description="Watch for one target object.")
+    parser = argparse.ArgumentParser(
+        description="Watch for one object and optionally play a sound."
+    )
     parser.add_argument(
         "--camera",
         action="store_true",
@@ -68,6 +75,18 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=DEFAULT_CONFIDENCE_THRESHOLD,
         help="Minimum confidence threshold for prediction decoding.",
+    )
+    parser.add_argument(
+        "--sound",
+        type=Path,
+        default=DEFAULT_SOUND_PATH,
+        help="Path to the WAV sound to play when the object is visible.",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=WATCH_MODES,
+        default=DEFAULT_WATCH_MODE,
+        help="Sound mode: once per appearance or continuously while visible.",
     )
     parser.add_argument(
         "--image",
@@ -159,6 +178,33 @@ def print_not_present_event(event: WatchEvent) -> None:
     print()
 
 
+def display_label(label: str) -> str:
+    """Return a readable object label for console messages."""
+    return label[:1].upper() + label[1:]
+
+
+def play_sound(sound_path: Path) -> None:
+    """Play a WAV sound with Linux aplay when available."""
+    if not sound_path.exists():
+        print(f"Warning: sound file not found: {sound_path}")
+        return
+
+    audio_player = shutil.which("aplay")
+    if audio_player is None:
+        print("Warning: audio player 'aplay' not found. Sound skipped.")
+        return
+
+    try:
+        subprocess.run(
+            [audio_player, "-q", str(sound_path)],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as error:
+        print(f"Warning: sound playback failed: {error}")
+
+
 def update_state(
     state: WatchState,
     active_event: WatchEvent | None,
@@ -198,52 +244,67 @@ def run(
     target_label: str,
     confidence_threshold: float,
     nms_threshold: float,
+    sound_path: Path,
+    mode: str,
     interval_seconds: float,
 ) -> None:
     """Run Object Watch until interrupted."""
-    camera = create_camera(use_pi_camera, image_path)
-    preprocessor = Preprocessor()
-    inference_engine = InferenceEngine()
-    detector = Detector(
+    from src.guardian import Guardian
+
+    guardian = Guardian(
+        use_pi_camera=use_pi_camera,
+        image_path=image_path,
+        model_path=model_path,
+        label_path=label_path,
         confidence_threshold=confidence_threshold,
         nms_threshold=nms_threshold,
     )
-    state = WatchState.NOT_PRESENT
-    active_event: WatchEvent | None = None
+    label_text = display_label(target_label)
+    next_sound_at = 0.0
+    announced_visible = False
 
     print(f"Watching for object: {target_label}")
+    print(f"Mode: {mode}")
+    print(f"Sound: {sound_path}")
     print(f"Source: {'PiCamera' if use_pi_camera else image_path}")
     print("Press Ctrl+C to stop.")
     print()
+    print(f"Waiting for {target_label}...")
 
     try:
-        camera.start()
-        inference_engine.load(model_path)
-        detector.load_labels(label_path)
-
         while True:
-            detections = process_frame(
-                frame=camera.capture(),
-                preprocessor=preprocessor,
-                inference_engine=inference_engine,
-                detector=detector,
-            )
-            target_detection = best_target_detection(detections, target_label)
-            state, active_event = update_state(
-                state=state,
-                active_event=active_event,
-                target_detection=target_detection,
-                target_label=target_label,
-            )
+            frame_started_at = time.perf_counter()
+            frame = guardian.next_frame()
+            now = time.perf_counter()
+
+            if frame.just_detected(target_label):
+                announced_visible = False
+                next_sound_at = now + interval_seconds
+                print(f"{label_text} detected.")
+                print("Playing sound...")
+                play_sound(sound_path)
+            elif frame.sees(target_label):
+                if mode == "continuous" and now >= next_sound_at:
+                    print(f"{label_text} still visible.")
+                    print("Playing sound...")
+                    play_sound(sound_path)
+                    next_sound_at = now + interval_seconds
+                elif mode == "once" and not announced_visible:
+                    print(f"{label_text} still visible.")
+                    announced_visible = True
+            elif frame.just_disappeared(target_label):
+                announced_visible = False
+                next_sound_at = 0.0
+                print(f"{label_text} left.")
+                print("Waiting again...")
 
             if not use_pi_camera:
-                time.sleep(max(0.0, interval_seconds))
+                elapsed = time.perf_counter() - frame_started_at
+                time.sleep(max(0.0, interval_seconds - elapsed))
     except KeyboardInterrupt:
         print("Stopping Object Watch.")
-        if state is WatchState.PRESENT and active_event is not None:
-            print_not_present_event(active_event)
     finally:
-        camera.stop()
+        guardian.close()
 
 
 def main() -> int:
@@ -258,6 +319,8 @@ def main() -> int:
             target_label=args.object,
             confidence_threshold=args.threshold,
             nms_threshold=args.nms_threshold,
+            sound_path=args.sound,
+            mode=args.mode,
             interval_seconds=args.interval,
         )
     except (GuardianAIError, FileNotFoundError, ValueError) as error:

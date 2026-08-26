@@ -291,3 +291,102 @@ Expected:
 - Detection explorer prints NMS removals.
 - Dashboard opens a visual multi-panel window.
 
+## Object Watch Sound File Missing
+
+Symptom:
+
+```text
+Warning: sound file not found: sounds/hello.wav
+```
+
+Fix:
+
+- Place the WAV file at the path passed to `--sound`.
+- Or choose a different WAV file:
+
+```bash
+python3 -B apps/object_watch.py --camera --object person --sound sounds/other.wav --mode once
+```
+
+The app should continue watching even when the sound is missing.
+
+## aplay Missing
+
+Symptom:
+
+```text
+Warning: audio player 'aplay' not found. Sound skipped.
+```
+
+Fix on Raspberry Pi:
+
+```bash
+sudo apt install alsa-utils
+```
+
+macOS note:
+
+- `aplay` is a Linux audio tool. On macOS, this warning is acceptable during validation. The application should keep running.
+
+## Wrong Object Label
+
+Symptom:
+
+- The app runs, but the expected object never appears.
+
+Check the label:
+
+```bash
+grep -n "^person$" labels/coco.txt
+grep -n "^squirrel$" labels/coco.txt
+grep -n "^cat$" labels/coco.txt
+grep -n "^bird$" labels/coco.txt
+```
+
+Fix:
+
+- Use a label that exists in `labels/coco.txt`.
+- Match the spelling used by the label file.
+
+## No Detections In Object Watch
+
+Try a lower threshold:
+
+```bash
+python3 -B apps/object_watch.py --object person --sound sounds/hello.wav --mode once --threshold 0.01
+```
+
+For Raspberry Pi camera:
+
+```bash
+python3 -B apps/object_watch.py --camera --object person --sound sounds/hello.wav --mode once --threshold 0.10
+```
+
+Other fixes:
+
+- Improve lighting.
+- Move the object closer to the camera.
+- Validate the model with `apps/detection_explorer.py`.
+
+## Camera Unavailable In Object Watch
+
+Symptom:
+
+```text
+Picamera2 is required for PiCamera.
+```
+
+Fix:
+
+- Run camera mode on Raspberry Pi OS with Picamera2 installed.
+- Validate without camera first:
+
+```bash
+python3 -B apps/object_watch.py --object person --sound sounds/hello.wav --mode once --threshold 0.01
+```
+
+Then retry live camera:
+
+```bash
+python3 -B apps/object_watch.py --camera --object person --sound sounds/hello.wav --mode once --threshold 0.25
+```

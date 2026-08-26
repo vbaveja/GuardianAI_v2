@@ -524,3 +524,50 @@ Keyboard shortcuts:
 - `d`: Highlight detection panel.
 - `Space`: Pause or resume live mode.
 - `q`: Quit.
+
+## Build Machines Without Code
+
+You can make several GuardianAI machines by changing command-line options.
+
+Person Greeter:
+
+```bash
+python3 -B apps/object_watch.py --camera --object person --sound sounds/hello.wav --mode once
+```
+
+What should I see?
+
+- The app waits for a person.
+- When a person appears, it plays the greeting once.
+- It waits again after the person leaves.
+
+Garden Guardian:
+
+```bash
+python3 -B apps/object_watch.py --camera --object squirrel --sound sounds/hawk.wav --mode continuous --interval 3
+```
+
+What should I see?
+
+- The app watches for squirrels.
+- While a squirrel stays visible, it plays the sound every 3 seconds.
+- It stops playing when the squirrel leaves.
+
+Cat Deterrent:
+
+```bash
+python3 -B apps/object_watch.py --camera --object cat --sound sounds/dog.wav --mode continuous --interval 5
+```
+
+Bird Monitor:
+
+```bash
+python3 -B apps/object_watch.py --camera --object bird --sound sounds/chirp.wav --mode once
+```
+
+If your output differs:
+
+- If the sound is missing, the app warns you and keeps watching.
+- If no object is detected, try `--threshold 0.10`.
+- If the label is wrong, check `labels/coco.txt`.
+- If the camera fails, remove `--camera` and test with the static image first.

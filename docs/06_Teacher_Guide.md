@@ -553,3 +553,32 @@ Detection Explorer:
 ```text
 [screenshot placeholder: images/detection_explorer_validation.png]
 ```
+
+## Teaching Object Watch Machines
+
+Learning objective:
+
+- Students can explain how one application becomes many intelligent machines through configuration.
+
+Teacher demonstration:
+
+```bash
+python3 -B apps/object_watch.py --camera --object person --sound sounds/hello.wav --mode once
+python3 -B apps/object_watch.py --camera --object squirrel --sound sounds/hawk.wav --mode continuous --interval 3
+python3 -B apps/object_watch.py --camera --object cat --sound sounds/dog.wav --mode continuous --interval 5
+python3 -B apps/object_watch.py --camera --object bird --sound sounds/chirp.wav --mode once
+```
+
+Discussion prompts:
+
+- What changed between these machines?
+- Which parts of the AI platform stayed the same?
+- Why is changing command-line options safer than editing the detector?
+- When should sound play once, and when should it repeat?
+
+Expected answers:
+
+- The object label, sound file, mode, and interval changed.
+- Camera, preprocessing, inference, detection, and Guardian facade stayed the same.
+- Configuration avoids breaking the validated perception pipeline.
+- `once` mode is best for greetings and announcements. `continuous` mode is best for deterrents or repeating alerts.

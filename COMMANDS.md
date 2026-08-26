@@ -410,3 +410,62 @@ Inspect generated validation files:
 ls images
 find . -name __pycache__ -type d -prune -print
 ```
+
+## Object Watch Examples
+
+Person Greeter:
+
+```bash
+python3 -B apps/object_watch.py \
+  --camera \
+  --object person \
+  --sound sounds/hello.wav \
+  --mode once
+```
+
+Garden Guardian:
+
+```bash
+python3 -B apps/object_watch.py \
+  --camera \
+  --object squirrel \
+  --sound sounds/hawk.wav \
+  --mode continuous \
+  --interval 3
+```
+
+Cat Deterrent:
+
+```bash
+python3 -B apps/object_watch.py \
+  --camera \
+  --object cat \
+  --sound sounds/dog.wav \
+  --mode continuous \
+  --interval 5
+```
+
+Bird Monitor:
+
+```bash
+python3 -B apps/object_watch.py \
+  --camera \
+  --object bird \
+  --sound sounds/chirp.wav \
+  --mode once
+```
+
+Static image validation without Raspberry Pi camera:
+
+```bash
+python3 -B apps/object_watch.py \
+  --object person \
+  --sound sounds/hello.wav \
+  --mode once \
+  --threshold 0.01
+```
+
+Mode behavior:
+
+- `--mode once`: play once per appearance event, stay quiet while visible, re-arm after the object leaves.
+- `--mode continuous`: play while visible, wait `--interval` seconds between plays, stop as soon as the object leaves.
