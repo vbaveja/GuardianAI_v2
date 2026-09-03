@@ -496,12 +496,21 @@ Live Raspberry Pi command:
 python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25
 ```
 
+Perception -> Detection -> Action demo:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25 --sound sounds/hello.wav
+```
+
 What should I see?
 
 - One dashboard window.
 - Panels for original image, grayscale, edges, model input, predictions, and detections.
 - An information panel with FPS, inference time, prediction count, and detection count.
 - An embedded console panel showing watched-object state and recent events.
+- With `--sound`, the console shows the action when the watched object appears.
+
+AI perception becomes useful when the machine can respond to what it perceives. In this demo, detecting a person becomes an event, and that event plays `hello.wav` once.
 
 If your output differs:
 

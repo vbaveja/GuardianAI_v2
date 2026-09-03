@@ -308,6 +308,12 @@ Fix:
 python3 -B apps/object_watch.py --camera --object person --sound sounds/other.wav --mode once
 ```
 
+For the Perception Dashboard action demo:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25 --sound sounds/other.wav
+```
+
 The app should continue watching even when the sound is missing.
 
 ## aplay Missing
@@ -327,6 +333,47 @@ sudo apt install alsa-utils
 macOS note:
 
 - `aplay` is a Linux audio tool. On macOS, this warning is acceptable during validation. The application should keep running.
+
+## Sound Not Audible
+
+Check:
+
+- Confirm the speaker is connected and powered.
+- Confirm Raspberry Pi audio output is routed to the expected device.
+- Test the WAV directly:
+
+```bash
+aplay sounds/hello.wav
+```
+
+- Then retry the dashboard demo:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25 --sound sounds/hello.wav
+```
+
+## Object Detected But Action Not Triggered
+
+Check:
+
+- Confirm the dashboard was started with both `--object person` and `--sound sounds/hello.wav`.
+- Confirm the embedded console changes from `State: NOT PRESENT` to `State: PRESENT`.
+- Move fully out of frame and back in. The action triggers on the appearance transition, not on every visible frame.
+- If the object label differs, use the exact label from `labels/coco.txt`.
+
+## Sound Plays Repeatedly Unexpectedly
+
+Expected dashboard behavior:
+
+- The sound plays once when the watched object appears.
+- It does not replay while the object remains visible.
+- It re-arms only after the object disappears.
+
+If it repeats while the object is still in view:
+
+- Improve lighting or camera position so detection does not flicker between present and not present.
+- Lower or raise `--threshold` slightly to stabilize detection.
+- Watch the console state. Repeated `NOT PRESENT` to `PRESENT` changes mean the detector is losing and reacquiring the object.
 
 ## Wrong Object Label
 

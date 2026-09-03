@@ -160,6 +160,16 @@ Raspberry Pi camera:
 python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25
 ```
 
+Raspberry Pi Perception -> Detection -> Action demo:
+
+```bash
+python3 -B apps/perception_dashboard.py \
+  --camera \
+  --object person \
+  --threshold 0.25 \
+  --sound sounds/hello.wav
+```
+
 Keyboard:
 
 ```text

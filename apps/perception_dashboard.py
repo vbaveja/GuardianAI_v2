@@ -10,7 +10,9 @@ import argparse
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
+import shutil
 import sys
+import threading
 import time
 
 import cv2
@@ -36,7 +38,13 @@ from apps.guardian_console import (
     update_console_state,
     visible_duration,
 )
-from apps.object_watch import DEFAULT_TARGET_OBJECT, WatchEvent, WatchState, best_target_detection
+from apps.object_watch import (
+    DEFAULT_TARGET_OBJECT,
+    WatchEvent,
+    WatchState,
+    best_target_detection,
+    play_sound,
+)
 
 
 WINDOW_NAME = "GuardianAI Perception Dashboard"
@@ -52,6 +60,7 @@ DETECTION_COLOR = (0, 255, 80)
 HIGHLIGHT_COLOR = (0, 255, 255)
 TEXT_COLOR = (235, 235, 235)
 BACKGROUND_COLOR = (28, 28, 28)
+ACTION_STATUS_SECONDS = 3.0
 
 
 @dataclass(frozen=True)
@@ -74,6 +83,9 @@ class DashboardData:
     highest_confidence: float
     visible_duration_seconds: float
     recent_events: tuple[ConsoleEvent, ...]
+    sound_path: Path | None
+    action_status: str
+    action_status_until: float
 
 
 STAGE_TITLES = {
@@ -139,6 +151,12 @@ def parse_args() -> argparse.Namespace:
         help="Object label watched by the optional console panel.",
     )
     parser.add_argument(
+        "--sound",
+        type=Path,
+        default=None,
+        help="Optional WAV file to play once when the watched object appears.",
+    )
+    parser.add_argument(
         "--hide-console",
         action="store_true",
         help="Hide the embedded Guardian Console panel.",
@@ -161,6 +179,9 @@ def process_frame(
     highest_confidence: float,
     visible_duration_seconds: float,
     recent_events: tuple[ConsoleEvent, ...],
+    sound_path: Path | None,
+    action_status: str,
+    action_status_until: float,
 ) -> DashboardData:
     """Run one frame through the reusable perception modules."""
     preprocessing = preprocessor.process(frame)
@@ -186,6 +207,9 @@ def process_frame(
         highest_confidence=highest_confidence,
         visible_duration_seconds=visible_duration_seconds,
         recent_events=recent_events,
+        sound_path=sound_path,
+        action_status=action_status,
+        action_status_until=action_status_until,
     )
 
 
@@ -340,14 +364,28 @@ def make_console_panel(data: DashboardData) -> np.ndarray:
     )
     highest_text = "n/a" if data.highest_confidence <= 0.0 else f"{data.highest_confidence:.4f}"
 
-    left_lines = [
-        "Guardian Console",
-        f"Watching: {data.target_label}",
-        f"Current State: {data.watch_state.value}",
-        f"Current Confidence: {confidence_text}",
-        f"Highest Confidence: {highest_text}",
-        f"Visible Duration: {data.visible_duration_seconds:.2f}s",
-    ]
+    if data.sound_path is None:
+        left_lines = [
+            "Guardian Console",
+            f"Watching: {data.target_label}",
+            f"Current State: {data.watch_state.value}",
+            f"Current Confidence: {confidence_text}",
+            f"Highest Confidence: {highest_text}",
+            f"Visible Duration: {data.visible_duration_seconds:.2f}s",
+        ]
+    else:
+        action_status = data.action_status
+        if time.perf_counter() >= data.action_status_until:
+            action_status = "Waiting"
+        left_lines = [
+            "Guardian Console",
+            f"Watching: {data.target_label}",
+            f"State: {data.watch_state.value.replace('_', ' ')}",
+            f"Confidence: {confidence_text}",
+            f"Highest Confidence: {highest_text}",
+            f"Visible Duration: {data.visible_duration_seconds:.2f}s",
+            f"Action: {action_status}",
+        ]
     middle_lines = ["Objects Currently Detected"]
     if data.detections:
         middle_lines.extend(format_detection(detection) for detection in data.detections[:6])
@@ -360,18 +398,27 @@ def make_console_panel(data: DashboardData) -> np.ndarray:
     else:
         right_lines.append("- none")
 
-    draw_panel_column(panel, left_lines, 14, 30)
+    draw_panel_column(panel, left_lines, 14, 30, data.sound_path is not None)
     draw_panel_column(panel, middle_lines, PANEL_WIDTH + 14, 30)
     draw_panel_column(panel, right_lines, PANEL_WIDTH * 2 + 14, 30)
     cv2.rectangle(panel, (0, 0), (panel.shape[1] - 1, panel.shape[0] - 1), (80, 80, 80), 1)
     return panel
 
 
-def draw_panel_column(panel: np.ndarray, lines: list[str], x: int, y: int) -> None:
+def draw_panel_column(
+    panel: np.ndarray,
+    lines: list[str],
+    x: int,
+    y: int,
+    emphasize_action: bool = False,
+) -> None:
     """Draw one text column in a dashboard-wide panel."""
     for index, line in enumerate(lines):
         font_scale = 0.68 if index == 0 else 0.5
         color = HIGHLIGHT_COLOR if index == 0 else TEXT_COLOR
+        if emphasize_action and line.startswith("Action: ") and line != "Action: Waiting":
+            color = HIGHLIGHT_COLOR
+            font_scale = 0.62
         cv2.putText(
             panel,
             line[:62],
@@ -382,6 +429,23 @@ def draw_panel_column(panel: np.ndarray, lines: list[str], x: int, y: int) -> No
             1,
             cv2.LINE_AA,
         )
+
+
+def trigger_sound_action(sound_path: Path) -> str:
+    """Start Object Watch sound playback without blocking the dashboard."""
+    if not sound_path.exists():
+        warning = f"Warning: sound file not found: {sound_path}"
+        print(warning)
+        return f"Warning: missing {sound_path.name}"
+
+    if shutil.which("aplay") is None:
+        warning = "Warning: audio player 'aplay' not found. Sound skipped."
+        print(warning)
+        return "Warning: aplay unavailable"
+
+    thread = threading.Thread(target=play_sound, args=(sound_path,), daemon=True)
+    thread.start()
+    return f"Played {sound_path.name}"
 
 
 def render_dashboard(
@@ -439,6 +503,7 @@ def run(
     use_pi_camera: bool,
     target_label: str,
     show_console_panel: bool,
+    sound_path: Path | None,
 ) -> None:
     """Run the interactive perception dashboard."""
     camera = create_camera(use_pi_camera, image_path)
@@ -457,6 +522,8 @@ def run(
     active_event: WatchEvent | None = None
     recent_events: deque[ConsoleEvent] = deque(maxlen=10)
     last_frame_time = time.perf_counter()
+    action_status = "Waiting"
+    action_status_until = 0.0
 
     try:
         camera.start()
@@ -487,8 +554,12 @@ def run(
                     highest_confidence=active_event.highest_confidence if active_event else 0.0,
                     visible_duration_seconds=visible_duration(active_event),
                     recent_events=tuple(recent_events),
+                    sound_path=sound_path,
+                    action_status=action_status,
+                    action_status_until=action_status_until,
                 )
                 target_detection = best_target_detection(data.detections, target_label)
+                was_not_present = watch_state is WatchState.NOT_PRESENT
                 watch_state, active_event = update_console_state(
                     state=watch_state,
                     active_event=active_event,
@@ -496,6 +567,16 @@ def run(
                     target_label=target_label,
                     recent_events=recent_events,
                 )
+                if (
+                    sound_path is not None
+                    and was_not_present
+                    and watch_state is WatchState.PRESENT
+                ):
+                    action_status = trigger_sound_action(sound_path)
+                    action_status_until = time.perf_counter() + ACTION_STATUS_SECONDS
+                elif sound_path is not None and watch_state is WatchState.NOT_PRESENT:
+                    action_status = "Waiting"
+                    action_status_until = 0.0
                 data = DashboardData(
                     frame=data.frame,
                     preprocessing=data.preprocessing,
@@ -513,6 +594,9 @@ def run(
                     highest_confidence=active_event.highest_confidence if active_event else 0.0,
                     visible_duration_seconds=visible_duration(active_event),
                     recent_events=tuple(recent_events),
+                    sound_path=sound_path,
+                    action_status=action_status,
+                    action_status_until=action_status_until,
                 )
             elif data is not None and data.paused != paused:
                 data = DashboardData(
@@ -532,6 +616,9 @@ def run(
                     highest_confidence=data.highest_confidence,
                     visible_duration_seconds=data.visible_duration_seconds,
                     recent_events=data.recent_events,
+                    sound_path=data.sound_path,
+                    action_status=action_status,
+                    action_status_until=action_status_until,
                 )
             elif data is not None:
                 data = DashboardData(
@@ -551,6 +638,9 @@ def run(
                     highest_confidence=data.highest_confidence,
                     visible_duration_seconds=visible_duration(active_event),
                     recent_events=tuple(recent_events),
+                    sound_path=data.sound_path,
+                    action_status=action_status,
+                    action_status_until=action_status_until,
                 )
 
             cv2.imshow(WINDOW_NAME, render_dashboard(data, active_stage, show_console_panel))
@@ -591,6 +681,7 @@ def main() -> int:
             use_pi_camera=args.camera,
             target_label=args.object,
             show_console_panel=not args.hide_console,
+            sound_path=args.sound,
         )
     except (GuardianAIError, FileNotFoundError, ValueError) as error:
         print(f"GuardianAI perception dashboard error: {error}", file=sys.stderr)

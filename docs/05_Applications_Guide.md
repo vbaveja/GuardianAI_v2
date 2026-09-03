@@ -518,6 +518,7 @@ Common mistakes:
 Purpose:
 
 - Combines the visual learning stages into one dashboard.
+- Optionally demonstrates an action when the watched object appears.
 
 Command:
 
@@ -531,11 +532,18 @@ Live Raspberry Pi command:
 python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25
 ```
 
+Live Perception -> Detection -> Action demo:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25 --sound sounds/hello.wav
+```
+
 CLI options:
 
 - `--camera`: use live camera instead of static image.
 - `--object <label>`: watched object for embedded console panel.
 - `--threshold <confidence>`: confidence threshold.
+- `--sound <wav file>`: optional WAV file to play once when the watched object appears.
 
 Example output:
 

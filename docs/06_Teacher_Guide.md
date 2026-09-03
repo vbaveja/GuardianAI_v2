@@ -351,6 +351,29 @@ Expected:
 - Inference time updates.
 - Console state changes when a person appears or disappears.
 
+### Part 9: Perception To Action Demo
+
+Run:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25 --sound sounds/hello.wav
+```
+
+Suggested classroom sequence:
+
+- Camera captures the scene.
+- Perception prepares the image.
+- Detection finds the object.
+- Decision/Event marks the watched object as present.
+- Action plays the sound once.
+
+Expected:
+
+- No person: `State: NOT PRESENT` and `Action: Waiting`.
+- Person enters: the detection box appears and `Action: Played hello.wav` is visible for a few seconds.
+- Person remains: the greeting does not repeat.
+- Person leaves and returns: the action is re-armed and plays again.
+
 Ask:
 
 - Did the pipeline change when the image source changed?

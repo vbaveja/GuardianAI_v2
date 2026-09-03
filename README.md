@@ -54,6 +54,12 @@ Run with Raspberry Pi camera:
 python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25
 ```
 
+Run the visual Perception -> Detection -> Action demo:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25 --sound sounds/hello.wav
+```
+
 ## Main Documents
 
 - [Project Overview](docs/00_Project_Overview.md)
