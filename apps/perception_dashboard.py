@@ -44,6 +44,7 @@ from apps.object_watch import (
     WatchState,
     best_target_detection,
     play_sound,
+    validate_runtime_config,
 )
 
 
@@ -506,6 +507,8 @@ def run(
     sound_path: Path | None,
 ) -> None:
     """Run the interactive perception dashboard."""
+    validate_runtime_config(model_path, label_path, target_label)
+
     camera = create_camera(use_pi_camera, image_path)
     preprocessor = Preprocessor()
     inference_engine = InferenceEngine()
@@ -526,6 +529,11 @@ def run(
     action_status_until = 0.0
 
     try:
+        print(f"Model: {model_path}")
+        print(f"Labels: {label_path}")
+        print(f"Watching: {target_label}")
+        print()
+
         camera.start()
         inference_engine.load(model_path)
         detector.load_labels(label_path)

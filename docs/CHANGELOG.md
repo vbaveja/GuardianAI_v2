@@ -1,5 +1,55 @@
 # GuardianAI Changelog
 
+## Sprint 17B - Selectable Detection Models
+
+Purpose:
+
+- Let applications select an ONNX detector and label file from the command line.
+- Run the existing Perception Dashboard and Object Watch with the squirrel detector for Garden Guardian demos.
+- Keep the change application-scoped without modifying the validated perception modules.
+
+Files Modified:
+
+- `apps/perception_dashboard.py`
+- `apps/object_watch.py`
+- `README.md`
+- `COMMANDS.md`
+- `docs/05_Applications_Guide.md`
+- `docs/06_Teacher_Guide.md`
+- `docs/07_Student_Guide.md`
+- `docs/Squirrel_Model.md`
+- `docs/10_Troubleshooting.md`
+- `docs/CHANGELOG.md`
+
+Behavior Added:
+
+- `--model` and `--labels` are exposed for the Perception Dashboard and Object Watch.
+- Defaults remain `models/object_detector.onnx` and `labels/coco.txt`.
+- Startup validation checks model path, label path, and whether `--object` exists in the selected labels.
+- Non-default model runs print the selected model, labels, and watched object.
+
+Validation Performed:
+
+```bash
+python3 -m py_compile apps/perception_dashboard.py apps/object_watch.py
+python3 -B apps/perception_dashboard.py --help
+python3 -B apps/object_watch.py --help
+python3 -B apps/object_watch.py --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object person --threshold 0.25
+```
+
+Raspberry Pi validation commands:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25 --sound sounds/hello.wav
+python3 -B apps/perception_dashboard.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel --threshold 0.25 --sound sounds/hawk.wav
+python3 -B apps/object_watch.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel --sound sounds/hawk.wav --mode continuous --interval 30 --threshold 0.25
+```
+
+Lessons Learned:
+
+- The existing Guardian facade already accepted model and label paths, so the sprint only needed application-level exposure and validation.
+- Validating the watched object against the selected labels prevents silent impossible configurations.
+
 ## Sprint 17A - Squirrel Detection Model
 
 Purpose:

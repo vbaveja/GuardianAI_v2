@@ -211,6 +211,19 @@ Mac inference time in that test:
 
 - Approximately 29.6-37.8 ms per image on Apple M3 CPU.
 
+## Raspberry Pi Validation
+
+Observed Sprint 17B Raspberry Pi results:
+
+- ONNX load: successful.
+- Output shape: `[1, 5, 8400]`.
+- Pi camera inference: approximately 546-585 ms.
+- Live Pi-camera test: successful.
+- Observed confidence: approximately 0.25-0.37.
+- Test target: squirrel photograph displayed on another screen.
+
+This is not yet real outdoor squirrel validation. It confirms the selectable squirrel model can load and run through the live Raspberry Pi camera path, but it does not prove field performance against live squirrels, outdoor lighting, motion, or background clutter.
+
 ## Known Limitations
 
 - Training used a small local subset of Open Images rather than the larger preferred Roboflow dataset.

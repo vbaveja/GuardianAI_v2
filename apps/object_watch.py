@@ -128,6 +128,45 @@ def create_camera(use_pi_camera: bool, image_path: Path) -> Camera:
     return ImageCamera(image_path)
 
 
+def load_label_names(label_path: Path) -> list[str]:
+    """Load non-empty labels from a label file for startup validation."""
+    if not label_path.exists():
+        raise FileNotFoundError(f"Label file not found: {label_path}")
+    if not label_path.is_file():
+        raise ValueError(f"Label path is not a file: {label_path}")
+
+    labels = [
+        line.strip()
+        for line in label_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if not labels:
+        raise ValueError(f"Label file is empty: {label_path}")
+    return labels
+
+
+def validate_runtime_config(
+    model_path: Path,
+    label_path: Path,
+    target_label: str,
+) -> list[str]:
+    """Validate model, labels, and watched object before starting runtime work."""
+    if not model_path.exists():
+        raise FileNotFoundError(f"ONNX model not found: {model_path}")
+    if not model_path.is_file():
+        raise ValueError(f"ONNX model path is not a file: {model_path}")
+
+    labels = load_label_names(label_path)
+    label_lookup = {label.lower() for label in labels}
+    if target_label.lower() not in label_lookup:
+        available = ", ".join(labels)
+        raise ValueError(
+            f"Object '{target_label}' is not supported by {label_path}.\n"
+            f"Available labels: {available}"
+        )
+    return labels
+
+
 def timestamp() -> str:
     """Return a readable local timestamp for console events."""
     return datetime.now().isoformat(timespec="seconds")
@@ -251,6 +290,8 @@ def run(
     """Run Object Watch until interrupted."""
     from src.guardian import Guardian
 
+    validate_runtime_config(model_path, label_path, target_label)
+
     guardian = Guardian(
         use_pi_camera=use_pi_camera,
         image_path=image_path,
@@ -264,6 +305,8 @@ def run(
     announced_visible = False
 
     print(f"Watching for object: {target_label}")
+    print(f"Model: {model_path}")
+    print(f"Labels: {label_path}")
     print(f"Mode: {mode}")
     print(f"Sound: {sound_path}")
     print(f"Source: {'PiCamera' if use_pi_camera else image_path}")

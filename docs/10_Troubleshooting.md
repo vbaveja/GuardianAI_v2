@@ -147,6 +147,12 @@ models/object_detector.onnx
 
 If missing, copy the ONNX model into `models/`.
 
+For a selected model path, check the exact path passed to `--model`:
+
+```bash
+ls models/squirrel_detector.onnx
+```
+
 ## Labels Missing
 
 Error:
@@ -165,6 +171,53 @@ Expected:
 
 ```text
 labels/coco.txt
+```
+
+For a selected label path, check the exact path passed to `--labels`:
+
+```bash
+ls labels/squirrel.txt
+```
+
+## Object Not In Selected Labels
+
+Error:
+
+```text
+Object 'person' is not supported by labels/squirrel.txt.
+Available labels: squirrel
+```
+
+Fix:
+
+- Use an object that exists in the selected label file.
+- Or select the matching labels for the object you want.
+
+Examples:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --object person --labels labels/coco.txt
+python3 -B apps/perception_dashboard.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel
+```
+
+## Model And Label Mismatch
+
+Symptom:
+
+- The app starts with a specialized model but detections look wrong, never appear, or fail during decoding.
+
+Fix:
+
+- Use the default COCO pair together:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --model models/object_detector.onnx --labels labels/coco.txt --object person
+```
+
+- Use the squirrel pair together:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel
 ```
 
 ## Unsupported YOLO Output Shape
@@ -208,6 +261,20 @@ python3 -B apps/prediction_explorer.py --threshold 0.01
 ```
 
 If predictions appear, the model works but the original threshold was too strict for the image.
+
+## Squirrel Not Detected Or Low Confidence
+
+Known early Raspberry Pi observation:
+
+- A squirrel photograph displayed on another screen was detected at approximately 0.25-0.37 confidence.
+
+Try:
+
+- Start with `--threshold 0.25`.
+- Move the squirrel target closer to the camera.
+- Improve lighting and reduce glare from screens.
+- Confirm the app uses `--model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel`.
+- Treat screen-photo validation as a lab test only; outdoor squirrels still need real-world validation.
 
 ## No OpenCV Window
 

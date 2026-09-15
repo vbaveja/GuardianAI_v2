@@ -374,10 +374,27 @@ Expected:
 - Person remains: the greeting does not repeat.
 - Person leaves and returns: the action is re-armed and plays again.
 
+### Part 10: Specialized Model Selection
+
+Run Garden Guardian with the squirrel detector:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel --threshold 0.25 --sound sounds/hawk.wav
+```
+
+Suggested classroom sequence:
+
+- Camera captures the scene.
+- Squirrel Detector replaces the default COCO detector.
+- Detection finds `squirrel`.
+- Decision/Event marks the watched squirrel as present.
+- Action plays `hawk.wav`.
+
 Ask:
 
 - Did the pipeline change when the image source changed?
 - Why is camera abstraction useful?
+- What changed when the model and label file changed?
 
 ## Assessment
 
@@ -587,7 +604,7 @@ Teacher demonstration:
 
 ```bash
 python3 -B apps/object_watch.py --camera --object person --sound sounds/hello.wav --mode once
-python3 -B apps/object_watch.py --camera --object squirrel --sound sounds/hawk.wav --mode continuous --interval 3
+python3 -B apps/object_watch.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel --sound sounds/hawk.wav --mode continuous --interval 30 --threshold 0.25
 python3 -B apps/object_watch.py --camera --object cat --sound sounds/dog.wav --mode continuous --interval 5
 python3 -B apps/object_watch.py --camera --object bird --sound sounds/chirp.wav --mode once
 ```

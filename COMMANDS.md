@@ -170,6 +170,18 @@ python3 -B apps/perception_dashboard.py \
   --sound sounds/hello.wav
 ```
 
+Garden Guardian dashboard:
+
+```bash
+python3 -B apps/perception_dashboard.py \
+  --camera \
+  --model models/squirrel_detector.onnx \
+  --labels labels/squirrel.txt \
+  --object squirrel \
+  --threshold 0.25 \
+  --sound sounds/hawk.wav
+```
+
 Keyboard:
 
 ```text
@@ -438,10 +450,13 @@ Garden Guardian:
 ```bash
 python3 -B apps/object_watch.py \
   --camera \
+  --model models/squirrel_detector.onnx \
+  --labels labels/squirrel.txt \
   --object squirrel \
   --sound sounds/hawk.wav \
   --mode continuous \
-  --interval 3
+  --interval 30 \
+  --threshold 0.25
 ```
 
 Cat Deterrent:

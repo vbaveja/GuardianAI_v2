@@ -538,9 +538,17 @@ Live Perception -> Detection -> Action demo:
 python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25 --sound sounds/hello.wav
 ```
 
+Garden Guardian dashboard:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel --threshold 0.25 --sound sounds/hawk.wav
+```
+
 CLI options:
 
 - `--camera`: use live camera instead of static image.
+- `--model <path>`: ONNX detector path, default `models/object_detector.onnx`.
+- `--labels <path>`: label file path, default `labels/coco.txt`.
 - `--object <label>`: watched object for embedded console panel.
 - `--threshold <confidence>`: confidence threshold.
 - `--sound <wav file>`: optional WAV file to play once when the watched object appears.
@@ -637,6 +645,8 @@ python3 -B apps/object_watch.py --camera --object person --threshold 0.25
 CLI options:
 
 - `--camera`: use live camera.
+- `--model <path>`: ONNX detector path, default `models/object_detector.onnx`.
+- `--labels <path>`: label file path, default `labels/coco.txt`.
 - `--object <label>`: object label to watch.
 - `--threshold <confidence>`: detection confidence threshold.
 
@@ -659,7 +669,8 @@ Keyboard shortcuts:
 
 Common mistakes:
 
-- Using a label that is not in `labels/coco.txt`.
+- Using a label that is not in the selected label file.
+- Selecting a specialized model without its matching label file.
 
 ### Guardian Runtime
 
@@ -725,6 +736,8 @@ Purpose:
 CLI options:
 
 - `--camera`: use Raspberry Pi camera.
+- `--model <path>`: ONNX detector path, default `models/object_detector.onnx`.
+- `--labels <path>`: label file path, default `labels/coco.txt`.
 - `--object <label>`: object to watch, default `person`.
 - `--sound <wav file>`: WAV file to play.
 - `--threshold <float>`: detection confidence threshold, default `0.25`.
@@ -735,7 +748,7 @@ Example commands:
 
 ```bash
 python3 -B apps/object_watch.py --camera --object person --sound sounds/hello.wav --mode once
-python3 -B apps/object_watch.py --camera --object squirrel --sound sounds/hawk.wav --mode continuous --interval 3
+python3 -B apps/object_watch.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel --sound sounds/hawk.wav --mode continuous --interval 30 --threshold 0.25
 python3 -B apps/object_watch.py --camera --object cat --sound sounds/dog.wav --mode continuous --interval 5
 python3 -B apps/object_watch.py --camera --object bird --sound sounds/chirp.wav --mode once
 ```
@@ -768,6 +781,7 @@ Troubleshooting:
 
 - Missing sound file: the app prints a warning and keeps watching.
 - `aplay` missing: install ALSA utilities on Raspberry Pi or continue without sound.
-- Wrong object label: confirm the label exists in `labels/coco.txt`.
+- Wrong object label: confirm the label exists in the selected label file.
+- Model/label mismatch: use `models/squirrel_detector.onnx` with `labels/squirrel.txt`, or use the default COCO model with `labels/coco.txt`.
 - No detections: lower `--threshold`, improve lighting, or use a clearer test object.
 - Camera unavailable: run without `--camera` to validate the rest of the app with a static image.

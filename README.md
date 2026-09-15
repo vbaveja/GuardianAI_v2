@@ -60,6 +60,12 @@ Run the visual Perception -> Detection -> Action demo:
 python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25 --sound sounds/hello.wav
 ```
 
+Run Garden Guardian with the squirrel model:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel --threshold 0.25 --sound sounds/hawk.wav
+```
+
 ## Main Documents
 
 - [Project Overview](docs/00_Project_Overview.md)

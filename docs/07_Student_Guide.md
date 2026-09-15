@@ -502,6 +502,12 @@ Perception -> Detection -> Action demo:
 python3 -B apps/perception_dashboard.py --camera --object person --threshold 0.25 --sound sounds/hello.wav
 ```
 
+Garden Guardian dashboard:
+
+```bash
+python3 -B apps/perception_dashboard.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel --threshold 0.25 --sound sounds/hawk.wav
+```
+
 What should I see?
 
 - One dashboard window.
@@ -511,6 +517,8 @@ What should I see?
 - With `--sound`, the console shows the action when the watched object appears.
 
 AI perception becomes useful when the machine can respond to what it perceives. In this demo, detecting a person becomes an event, and that event plays `hello.wav` once.
+
+A specialized model changes what the machine can perceive. With the squirrel model and squirrel labels, the same dashboard can become Garden Guardian without changing the perception code.
 
 If your output differs:
 
@@ -553,13 +561,13 @@ What should I see?
 Garden Guardian:
 
 ```bash
-python3 -B apps/object_watch.py --camera --object squirrel --sound sounds/hawk.wav --mode continuous --interval 3
+python3 -B apps/object_watch.py --camera --model models/squirrel_detector.onnx --labels labels/squirrel.txt --object squirrel --sound sounds/hawk.wav --mode continuous --interval 30 --threshold 0.25
 ```
 
 What should I see?
 
-- The app watches for squirrels.
-- While a squirrel stays visible, it plays the sound every 3 seconds.
+- The app uses the squirrel model and watches for squirrels.
+- While a squirrel stays visible, it plays the sound every 30 seconds.
 - It stops playing when the squirrel leaves.
 
 Cat Deterrent:
