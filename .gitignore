@@ -8,6 +8,7 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv-training/
 venv/
 .env
 
@@ -23,4 +24,14 @@ images/tmp*
 
 # AI Models
 models/*.onnx
+!models/squirrel_detector.onnx
+*.pt
+*.pth
 .DS_Store
+
+# Model development artifacts
+.ultralytics/
+:memory:.ses
+data/
+training/
+runs/

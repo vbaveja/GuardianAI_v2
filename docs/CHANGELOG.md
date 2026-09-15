@@ -1,5 +1,59 @@
 # GuardianAI Changelog
 
+## Sprint 17A - Squirrel Detection Model
+
+Purpose:
+
+- Build a squirrel-specific YOLO object detector for future Garden Guardian work.
+- Keep the sprint limited to dataset, training, validation, ONNX export, and compatibility analysis.
+- Avoid any changes to GuardianAI runtime source code or applications.
+
+Files Created:
+
+- `models/squirrel_detector.onnx`
+- `labels/squirrel.txt`
+- `docs/Squirrel_Model.md`
+
+Files Modified:
+
+- `.gitignore`
+- `docs/CHANGELOG.md`
+
+Behavior Added:
+
+- No GuardianAI application behavior was changed.
+- Added a one-class squirrel ONNX detector artifact and label file for future use.
+
+Validation Performed:
+
+```bash
+python3 -m venv .venv-training
+.venv-training/bin/yolo version
+.venv-training/bin/python -c "import torch; print(torch.backends.mps.is_available())"
+.venv-training/bin/yolo detect train model=yolov8n.pt data=data/squirrel/data.yaml epochs=30 imgsz=640 batch=8 device=cpu project=training name=squirrel_v1 exist_ok=True patience=10
+.venv-training/bin/yolo detect val model=runs/detect/training/squirrel_v1/weights/best.pt data=data/squirrel/data.yaml split=test imgsz=640 device=cpu project=training name=squirrel_v1_test exist_ok=True
+.venv-training/bin/yolo detect predict model=runs/detect/training/squirrel_v1/weights/best.pt source=data/squirrel/images/test imgsz=640 conf=0.25 device=cpu project=training name=squirrel_v1_predictions exist_ok=True
+.venv-training/bin/yolo export model=runs/detect/training/squirrel_v1/weights/best.pt format=onnx imgsz=640 opset=12 simplify=False nms=False
+```
+
+Results:
+
+- Dataset: Open Images V7 `Squirrel` detection subset.
+- Train/validation/test images: 500 / 22 / 22.
+- Base model: `yolov8n.pt`.
+- Training time: 0.628 hours on CPU.
+- Best validation metrics: precision 0.966, recall 0.957, mAP50 0.990, mAP50-95 0.782.
+- Held-out test metrics: precision 0.870, recall 0.913, mAP50 0.902, mAP50-95 0.659.
+- ONNX input: `images [1, 3, 640, 640] tensor(float)`.
+- ONNX output: `output0 [1, 5, 8400] tensor(float)`.
+- GuardianAI compatibility: YES, with the existing `Preprocessor`, `InferenceEngine`, and `Detector`.
+
+Lessons Learned:
+
+- A one-class YOLO export without embedded NMS can match GuardianAI's existing raw-output detector contract.
+- The available Mac environment did not expose PyTorch MPS, so the first experiment was CPU-only.
+- Small validation/test splits can look strong but are not a substitute for Garden Guardian field validation.
+
 ## Sprint 16 - Perception Dashboard Action Demo
 
 Purpose:
